@@ -1,0 +1,9 @@
+{
+  "name": "circuitgui",
+  "version": "0.0.1",
+  "title": "Circuit GUI",
+  "author": "Luke Perkin",
+  "contact": "",
+  "www": "www.locogame.co.uk",
+  "description": "Show GUI elements via the cirtuit network."
+}

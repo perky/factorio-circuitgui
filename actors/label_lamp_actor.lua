@@ -43,6 +43,7 @@ end
 
 function LabelLamp:Init()
 	self.gui = {}
+	self.help_gui = {}
 	self.message = ""
 	self.uid = next_uid
 	next_uid = next_uid + 1
@@ -147,11 +148,43 @@ function LabelLamp:OnTick()
 	end
 end
 
+local function _getPlayTime()
+	local time = game.tick
+	return FormatTicksToTime(time)
+end
+
+local function _getDayTime()
+	return string.format("%.2f", game.daytime)
+end
+
+local function _getPollution( entity )
+	return entity.surface.get_pollution(entity.position)
+end
+
+local function _getEvolution()
+	return string.format("$.2d", game.evolution_factor)
+end
+
+local function _getResearch( force )
+	return string.format("%.2f%%", force.research_progress)
+end
+
+local function _getLocation( entity )
+	return string.format("[%.1d, %.1d]", entity.position.x, entity.position.y)
+end
+
 function LabelLamp:ParseMessage( msg )
 	-- $A = first_signal
 	-- $B = second_signal
 	-- $C = comparitor
 	-- {itemname} = count item name in nearby chests.
+	-- $T = Play Time.
+	-- $D = Day Time.
+	-- $E = Evolution factor.
+	-- $P = Pollution.
+	-- $R = research.
+	-- $L = location.
+	-- $S = game speed.
 	local first_signal = ""
 	local second_signal = ""
 	local comparator = ""
@@ -194,9 +227,32 @@ function LabelLamp:ParseMessage( msg )
 		end)
 	end
 
-	msg = string.gsub(msg, "($A)", first_signal or "")
-	msg = string.gsub(msg, "($B)", second_signal or "")
-	msg = string.gsub(msg, "($C)", comparator or "")
+	local subs = {
+		["$A"] = first_signal,
+		["$B"] = second_signal,
+		["$C"] = comparator,
+		["$T"] = _getPlayTime(),
+		["$D"] = _getDayTime(),
+		["$P"] = _getPollution(self.entity),
+		["$E"] = _getEvolution(),
+		["$R"] = _getResearch(self.entity.force),
+		["$L"] = _getLocation(self.entity),
+		["$S"] = game.speed
+	}
+
+	msg = string.gsub(msg, "($%u)", function(match)
+		local result = subs[match]
+		if result then
+			return result
+		else
+			return match
+		end
+	end)
+
+	--msg = string.gsub(msg, "($A)", first_signal or "")
+	--msg = string.gsub(msg, "($B)", second_signal or "")
+	--msg = string.gsub(msg, "($C)", comparator or "")
+	--msg = string.gsub(msg, "()")
 
 	return msg
 end
@@ -240,12 +296,11 @@ function LabelLamp:OpenGUI( playerIndex )
 	end
 
 	GUI.PushLeftSection(playerIndex)
-	self.gui[playerIndex] = GUI.PushParent(GUI.Frame("labellamp_"..self.uid, "Set Message", GUI.VERTICAL))
+	self.gui[playerIndex] = GUI.PushParent(GUI.Frame("labellamp_"..self.uid, "Set Message", GUI.HORIZONTAL))
+	GUI.Button("help", "?", "ToggleHelpGUI", self)
 	GUI.PushParent(GUI.Flow("flow", GUI.VERTICAL))
-	GUI.Label("info1", "$A = first signal")
-	GUI.Label("info2", "$B = second signal")
-	GUI.Label("info3", "$C = comparator")
-	GUI.Label("info4", "{item-name} = count items in nearby smart chests")
+	
+	
 	local textInput = GUI.TextField("input", self.message)
 	textInput.text = self.message
 	GUI.Checkbox("alert_checkbox", "Alert", self.do_alert, "OnAlertCheckboxClick", self)
@@ -253,12 +308,40 @@ function LabelLamp:OpenGUI( playerIndex )
 end
 
 function LabelLamp:CloseGUI( playerIndex )
-	if not self.gui[playerIndex] then
-		return
+	if self.help_gui[playerIndex] then
+		self.help_gui[playerIndex].destroy()
+		self.help_gui[playerIndex] = nil
 	end
 
-	self.gui[playerIndex].destroy()
-	self.gui[playerIndex] = nil
+	if self.gui[playerIndex] then
+		self.gui[playerIndex].destroy()
+		self.gui[playerIndex] = nil
+	end
+end
+
+function LabelLamp:ToggleHelpGUI( event )
+	local helpGui = self.help_gui[event.player_index]
+	if helpGui then
+		helpGui.destroy()
+		self.help_gui[event.player_index] = nil
+		return 
+	end
+
+	GUI.PushLeftSection(event.player_index)
+	self.help_gui[event.player_index] = GUI.PushParent(GUI.Frame("labellamp_help_"..self.uid, "Help", GUI.VERTICAL))
+	GUI.PushParent(GUI.Flow("flow", GUI.VERTICAL))
+	GUI.Label("info1", "$A = first signal")
+	GUI.Label("info2", "$B = second signal")
+	GUI.Label("info3", "$C = comparator")
+	GUI.Label("info4", "$T = play time")
+	GUI.Label("info5", "$D = day time")
+	GUI.Label("info6", "$E = evolution factor")
+	GUI.Label("info7", "$P = pollution")
+	GUI.Label("info8", "$R = research progress")
+	GUI.Label("info9", "$L = location")
+	GUI.Label("info10", "$S = game speed")
+	GUI.Label("info11", "{item-name} = count items in nearby smart chests")
+	GUI.PopAll()
 end
 
 function LabelLamp:OnAlertCheckboxClick( event, args )
